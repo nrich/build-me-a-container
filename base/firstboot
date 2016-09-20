@@ -1,0 +1,17 @@
+#/bin/bash
+
+# set up default timezone for perth (14.04)
+echo "Australia/Perth" > /etc/timezone
+dpkg-reconfigure -f noninteractive tzdata
+
+# set up default timezone for perth (16.04)
+rm /etc/localtime
+ln -s /usr/share/zoneinfo/Australia/Perth /etc/localtime
+rm /etc/timezone
+ln -s /usr/share/zoneinfo/Australia/Perth /etc/timezone
+
+# add user to sudo
+adduser $USER sudo
+
+# resrict SSH logins to admin users
+echo "AllowUsers root $USER" >> /etc/ssh/sshd_config

@@ -1,0 +1,3 @@
+arch: amd64
+release: xenial
+mirror: http://ftp.ii.net/linux/ubuntu
