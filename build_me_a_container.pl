@@ -7,7 +7,6 @@ use Data::Dumper qw/Dumper/;
 use Cwd qw/cwd/;
 use File::Temp qw//;
 use Getopt::Long qw/GetOptions/;
-use POSIX qw/strftime/;
 use File::Copy qw/cp mv/;
 use File::Basename qw/basename/;
 use MIME::Base64 qw/encode_base64/;
@@ -16,6 +15,7 @@ my $NOBASE = 0;
 my $DRYRUN = 0;
 my $SCRIPT = 0;
 my $CLONE = '';
+my $MIRROR = '';
 my @modules = ();
 
 GetOptions(
@@ -24,6 +24,13 @@ GetOptions(
     script => \$SCRIPT,
     'clone:s' => \$CLONE,
     'module:s' => \@modules,
+    'mirror:s' => \$MIRROR,
+);
+
+my %mirrors = (
+    iinet => 'http://ftp.ii.net/linux/ubuntu',
+    internode => 'http://mirror.internode.on.net/pub/ubuntu/ubuntu',
+    ubuntu => 'http://au.archive.ubuntu.com/ubuntu',
 );
 
 main(@ARGV);
@@ -41,6 +48,8 @@ sub main {
     my @packages = ();
     my %config = ();
     my @lxc_args = ();
+    $MIRROR ||= 'iinet';
+    $MIRROR = $mirrors{$MIRROR} || $MIRROR;
 
     if (-f "$cwd/containers/$container/modules") {
         open my $fh, '<', "$cwd/containers/$container/modules" or die "Could not open `$cwd/containers/$container/modules': $!\n"; 
@@ -73,6 +82,7 @@ sub main {
     }
 
     $config{user} = $user;
+    $config{mirror} = $MIRROR;
     $config{'auth-key'} = "/home/$user/.ssh/id_rsa.pub";
 
     my $devbox = $container =~ /^dev/ ? "1" : "";
@@ -138,6 +148,8 @@ sub main {
         print "---------------------------\n";
         print "Args:\n", join(" ", @lxc_args), "\n";
         print "---------------------------\n";
+        print "Mirror:\n$MIRROR\n";
+        print "---------------------------\n";
         print "Copy list:\n", join("\n", @copylist), "\n";
         print "---------------------------\n";
         print "First boot:\n", cat($firstboot_name), "\n";
@@ -196,7 +208,7 @@ sub config {
         chomp $line;
 
         if ($line =~ /^\s*(\S+)\s*:\s*(\S+)\s*$/) {
-            $config->{"--$1"} = $2;
+            $config->{"$1"} = $2;
         }
     }
 }
@@ -240,7 +252,7 @@ build_me_a_container.pl - script to build a container from a collection of templ
 
 =head1 SYNOPSIS
 
-./build_me_a_vm.pl [--dryrun] [--nobase] [--script] <container name> [distribution]
+./build_me_a_container.pl [--dryrun] [--nobase] [--script] [--clone=lxc base image] [--mirror=Ubuntu repos url] [--module=build module] <container name>
 
 =head1 DESCRIPTION
 
