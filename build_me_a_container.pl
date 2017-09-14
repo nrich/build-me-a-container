@@ -8,7 +8,7 @@ use Cwd qw/cwd/;
 use File::Temp qw//;
 use Getopt::Long qw/GetOptions/;
 use File::Copy qw/cp mv/;
-use File::Basename qw/basename/;
+use File::Basename qw/basename dirname/;
 use MIME::Base64 qw/encode_base64/;
 
 my $NOBASE = 0;
@@ -71,6 +71,11 @@ sub main {
         packages(\@packages, "$cwd/containers/$container/packages");
     }
 
+    $config{user} = $user;
+    $config{password} = random_string(12);
+    $config{mirror} = $MIRROR;
+    $config{'auth-key'} = "/home/$user/.ssh/id_rsa.pub";
+
     config(\%config, "$cwd/base/config") unless $NOBASE;
     for my $type (@modules) {
         if (-f "$cwd/modules/$type/config") {
@@ -81,11 +86,10 @@ sub main {
         config(\%config, "$cwd/container/$container/config");
     }
 
-    $config{user} = $user;
-    $config{mirror} = $MIRROR;
-    $config{'auth-key'} = "/home/$user/.ssh/id_rsa.pub";
-
     my $devbox = $container =~ /^dev/ ? "1" : "";
+
+    my $rootkey = cat("/home/$user/.ssh/id_rsa.pub");
+    chomp $rootkey;
 
     my $firstboot = File::Temp->new();
     print $firstboot "#!/bin/bash\n\n";
@@ -94,6 +98,7 @@ sub main {
     print $firstboot "ARCH=\$(uname -m)\n";
     print $firstboot "DEV=\"$devbox\"\n";
     print $firstboot "USER=\"$user\"\n";
+    print $firstboot "SSHKEY=\"$rootkey\"\n";
     print $firstboot "\n";
 
     my @copylist = ();
@@ -111,8 +116,11 @@ sub main {
 
     for my $filename (@copylist) {
         my ($src,$dst) = split ' ', $filename;
+        my $basedir = dirname $dst;
+
         my $mode = sprintf '%04o', (stat $src)[2] & 07777;
         my $base64data = encode_base64(cat($src), '');
+        print $firstboot "mkdir -p $basedir\n";
         print $firstboot "echo $base64data|base64 -d>$dst\n";
         print $firstboot "chmod $mode $dst\n";
     }
@@ -122,6 +130,7 @@ sub main {
     }
     
     if (@packages) {
+        @packages = sort keys {map {$_ => 1} @packages};
         print $firstboot "\n# install packages\nDEBIAN_FRONTEND=noninteractive apt-get -y install " . join(' ', @packages) . "\n";
     }
 
@@ -171,6 +180,8 @@ sub main {
         #system qw/scp/, $firstboot_name, "${user}\@${ip}:$firstboot_name";
         system qw/sudo cp/, $firstboot_name, "/var/lib/lxc/$container/rootfs/$firstboot_name";
         system qw/sudo lxc-attach -n/, $container, qw/--/, $firstboot_name;
+
+        print "Container $container boot on IP $ip\npassword is $config{password}\n";
     }
 }
 
@@ -196,6 +207,8 @@ sub packages {
     open my $fh, '<', $filename or die "Could not open `$filename': $!\n";
     while (my $package = <$fh>) {
         chomp $package;
+        $package =~ s/^\s+//;
+        $package =~ s/\s+$//;
         push @$packages, $package;
     }
 }
@@ -208,7 +221,7 @@ sub config {
         chomp $line;
 
         if ($line =~ /^\s*(\S+)\s*:\s*(\S+)\s*$/) {
-            $config->{"$1"} = $2;
+            $config->{$1} = $2;
         }
     }
 }
@@ -245,6 +258,19 @@ sub append {
             print $out $line, "\n";
         }
     }
+}
+
+sub random_string {
+    my ($count) = @_;
+
+    $count ||= 32;
+
+    my @chars = ('A' .. 'Z', 'a' .. 'z', '0' .. '9');
+    
+    my $string = '_' x $count;
+    $string =~ s/_/@chars[rand(@chars)]/ge;
+
+    return $string;
 }
 
 =head1 NAME

@@ -1,3 +1,10 @@
+# set root SSH key
+mkdir /root/.ssh/
+chmod 0700 /root/.ssh/
+touch /root/.ssh/authorized_keys
+chmod 0644 /root/.ssh/authorized_keys
+echo $SSHKEY >> /root/.ssh/authorized_keys
+
 # set up default timezone for perth (14.04)
 echo "Australia/Perth" > /etc/timezone
 dpkg-reconfigure -f noninteractive tzdata
@@ -10,3 +17,7 @@ ln -s /usr/share/zoneinfo/Australia/Perth /etc/timezone
 
 # resrict SSH logins to admin users
 echo "AllowUsers root $USER" >> /etc/ssh/sshd_config
+
+# set term mode for screen connections
+echo TERM=xterm >> /etc/environment
+

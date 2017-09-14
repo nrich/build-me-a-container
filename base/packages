@@ -1,3 +1,7 @@
 vim
 command-not-found
 fail2ban
+wget
+psmisc
+libdata-dmp-perl
+software-properties-common
