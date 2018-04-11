@@ -6,14 +6,16 @@ chmod 0644 /root/.ssh/authorized_keys
 echo $SSHKEY >> /root/.ssh/authorized_keys
 
 # set up default timezone for perth (14.04)
-echo "Australia/Perth" > /etc/timezone
-dpkg-reconfigure -f noninteractive tzdata
+#echo "Australia/Perth" > /etc/timezone
+#dpkg-reconfigure -f noninteractive tzdata
 
 # set up default timezone for perth (16.04)
-rm /etc/localtime
-ln -s /usr/share/zoneinfo/Australia/Perth /etc/localtime
-rm /etc/timezone
-ln -s /usr/share/zoneinfo/Australia/Perth /etc/timezone
+#rm /etc/localtime
+#ln -s /usr/share/zoneinfo/Australia/Perth /etc/localtime
+#rm /etc/timezone
+#ln -s /usr/share/zoneinfo/Australia/Perth /etc/timezone
+
+timedatectl set-timezone Etc/GMT-8
 
 # resrict SSH logins to admin users
 echo "AllowUsers root $USER" >> /etc/ssh/sshd_config

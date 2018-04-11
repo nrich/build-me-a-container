@@ -155,6 +155,8 @@ sub main {
         exit 0;
     } elsif ($DRYRUN) {
         print "---------------------------\n";
+        print "Command:\n sudo lxc-create -t ubuntu -n $container --\n";
+        print "---------------------------\n";
         print "Args:\n", join(" ", @lxc_args), "\n";
         print "---------------------------\n";
         print "Mirror:\n$MIRROR\n";
