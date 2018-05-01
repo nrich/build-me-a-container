@@ -5,6 +5,8 @@ touch /root/.ssh/authorized_keys
 chmod 0644 /root/.ssh/authorized_keys
 echo $SSHKEY >> /root/.ssh/authorized_keys
 
+apt-get update && apt-get dist-upgrade -y
+
 # set up default timezone for perth (14.04)
 #echo "Australia/Perth" > /etc/timezone
 #dpkg-reconfigure -f noninteractive tzdata
