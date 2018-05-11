@@ -5,7 +5,7 @@ use warnings;
 
 use Data::Dumper qw/Dumper/;
 use Cwd qw/cwd/;
-use File::Temp qw//;
+use File::Temp qw/tempdir/;
 use Getopt::Long qw/GetOptions/;
 use File::Copy qw/cp mv/;
 use File::Basename qw/basename dirname/;
@@ -14,6 +14,7 @@ use MIME::Base64 qw/encode_base64/;
 my $NOBASE = 0;
 my $DRYRUN = 0;
 my $SCRIPT = 0;
+my $DOCKER = '';
 my $CLONE = '';
 my $MIRROR = '';
 my @modules = ();
@@ -22,13 +23,14 @@ GetOptions(
     nobase => \$NOBASE,
     dryrun => \$DRYRUN,
     script => \$SCRIPT,
+    'docker:s' => \$DOCKER,
     'clone:s' => \$CLONE,
     'module:s' => \@modules,
     'mirror:s' => \$MIRROR,
 );
 
 my %mirrors = (
-    iinet => 'http://ftp.ii.net/linux/ubuntu',
+    iinet => 'http://ftp.ii.net/pub/ubuntu',
     internode => 'http://mirror.internode.on.net/pub/ubuntu/ubuntu',
     ubuntu => 'http://au.archive.ubuntu.com/ubuntu',
 );
@@ -46,6 +48,9 @@ sub main {
 
     my @base_packages = qw(openssh-server);
     my @packages = ();
+    my @ports = ();
+
+    push @packages, @base_packages unless $NOBASE;
     my %config = ();
     my @lxc_args = ();
     $MIRROR ||= 'iinet';
@@ -60,15 +65,29 @@ sub main {
         close $fh;
     }
 
-    packages(\@packages, "$cwd/base/packages") unless $NOBASE;
+    if (-f "$cwd/base/packages" and not $NOBASE) {
+        packages(\@packages, "$cwd/base/packages");
+    }
+
+    if (-f "$cwd/base/ports" and not $NOBASE) {
+        ports(\@ports, "$cwd/base/ports");
+    }
 
     for my $type (@modules) {
         if (-f "$cwd/modules/$type/packages") {
             packages(\@packages, "$cwd/modules/$type/packages");
         }
+
+        if (-f "$cwd/modules/$type/ports") {
+            ports(\@ports, "$cwd/modules/$type/ports");
+        }
     } 
+
     if (-f "$cwd/containers/$container/packages") {
         packages(\@packages, "$cwd/containers/$container/packages");
+    }
+    if (-f "$cwd/containers/$container/ports") {
+        ports(\@ports, "$cwd/containers/$container/ports");
     }
 
     $config{user} = $user;
@@ -91,7 +110,16 @@ sub main {
     my $rootkey = cat("/home/$user/.ssh/id_rsa.pub");
     chomp $rootkey;
 
-    my $firstboot = File::Temp->new();
+    my $firstboot = undef;
+
+    if ($DOCKER) {
+        my $dir = tempdir(CLEANUP => 1);
+        $firstboot = File::Temp->new(DIR => $dir);
+    } else {
+        $firstboot = File::Temp->new();
+    }
+
+
     print $firstboot "#!/bin/bash\n\n";
     print $firstboot "#firsboot file for $container\n";
     print $firstboot "RELEASE=\$(lsb_release -sc)\n";
@@ -153,6 +181,33 @@ sub main {
     if ($SCRIPT) {
         print cat($firstboot_name); 
         exit 0;
+    } elsif ($DOCKER) {
+        my $dirname = dirname $firstboot_name;
+
+        my $dockerfile = File::Temp->new(DIR => $dirname);
+
+        $firstboot_name = basename $firstboot_name;
+
+        my ($runscript, @run_args) = split(' ', $DOCKER);
+
+        if (@run_args) {
+            $runscript = '[' . join(', ', map {"\"$_\""} ($runscript, @run_args)) . ']';
+        }
+
+        my $expose = join("\n", map {"EXPOSE $_"} @ports) || '';
+
+        print $dockerfile <<EOF;
+from       ubuntu:$config{release}
+MAINTAINER $user
+ADD        $firstboot_name /tmp/installer
+run        /bin/bash /tmp/installer
+$expose
+CMD $runscript
+EOF
+
+        system qw/docker build --file/, $dockerfile->filename(), '--tag', $container, $dirname;
+
+        exit 0;
     } elsif ($DRYRUN) {
         print "---------------------------\n";
         print "Command:\n sudo lxc-create -t ubuntu -n $container --\n";
@@ -212,6 +267,18 @@ sub packages {
         $package =~ s/^\s+//;
         $package =~ s/\s+$//;
         push @$packages, $package;
+    }
+}
+
+sub ports {
+    my ($ports, $filename) = @_;
+
+    open my $fh, '<', $filename or die "Could not open `$filename': $!\n";
+    while (my $port = <$fh>) {
+        chomp $port;
+        $port =~ s/^\s+//;
+        $port =~ s/\s+$//;
+        push @$ports, $port;
     }
 }
 
