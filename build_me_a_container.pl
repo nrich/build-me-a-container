@@ -119,7 +119,6 @@ sub main {
         $firstboot = File::Temp->new();
     }
 
-
     print $firstboot "#!/bin/bash\n\n";
     print $firstboot "#firsboot file for $container\n";
     print $firstboot "RELEASE=\$(lsb_release -sc)\n";
@@ -202,19 +201,24 @@ sub main {
 	my $package_list = join(' ', @packages);
 
         print $dockerfile <<EOF;
-from       ubuntu:$config{release}
+FROM       ubuntu:$config{release}
 MAINTAINER $user
 ADD        $firstboot_name /tmp/installer
-run        DEBIAN_FRONTEND=noninteractive apt-get update
-run        DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
-run        DEBIAN_FRONTEND=noninteractive apt-get install -y lsb-release
-run        DEBIAN_FRONTEND=noninteractive apt-get install -y $package_list
-run        /bin/bash /tmp/installer
+RUN        DEBIAN_FRONTEND=noninteractive apt-get update
+RUN        DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+RUN        DEBIAN_FRONTEND=noninteractive apt-get install -y lsb-release
+RUN        DEBIAN_FRONTEND=noninteractive apt-get install -y $package_list
+RUN        /bin/bash /tmp/installer
 $expose
 CMD $runscript
 EOF
 
-        system qw/docker build --file/, $dockerfile->filename(), '--tag', $container, $dirname;
+	if ($DRYRUN) {
+	    close $dockerfile;
+	    print cat($dockerfile), "\n";
+	} else {
+	    system qw/docker build --file/, $dockerfile->filename(), '--tag', $container, $dirname;
+	}
 
         exit 0;
     } elsif ($DRYRUN) {
