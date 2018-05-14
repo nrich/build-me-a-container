@@ -159,7 +159,10 @@ sub main {
     
     if (@packages) {
         @packages = sort keys {map {$_ => 1} @packages};
-        print $firstboot "\n# install packages\nDEBIAN_FRONTEND=noninteractive apt-get -y install " . join(' ', @packages) . "\n";
+
+	unless ($DOCKER) {
+	    print $firstboot "\n# install packages\nDEBIAN_FRONTEND=noninteractive apt-get -y install " . join(' ', @packages) . "\n";
+	}
     }
 
     for my $type (@modules) {
@@ -196,10 +199,16 @@ sub main {
 
         my $expose = join("\n", map {"EXPOSE $_"} @ports) || '';
 
+	my $package_list = join(' ', @packages);
+
         print $dockerfile <<EOF;
 from       ubuntu:$config{release}
 MAINTAINER $user
 ADD        $firstboot_name /tmp/installer
+run        DEBIAN_FRONTEND=noninteractive apt-get update
+run        DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+run        DEBIAN_FRONTEND=noninteractive apt-get install -y lsb-release
+run        DEBIAN_FRONTEND=noninteractive apt-get install -y $package_list
 run        /bin/bash /tmp/installer
 $expose
 CMD $runscript
