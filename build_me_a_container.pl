@@ -218,7 +218,7 @@ EOF
 	    print "Docker file:\n", cat($dockerfile), "\n";
 	    print "First boot:\n", cat("$dirname/$firstboot_name"), "\n";
 	} else {
-	    system qw/docker build --file/, $dockerfile->filename(), '--tag', $container, $dirname;
+	    system qw/sudo docker build --file/, $dockerfile->filename(), '--tag', $container, $dirname;
 	}
 
         exit 0;
