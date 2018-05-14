@@ -215,7 +215,8 @@ EOF
 
 	if ($DRYRUN) {
 	    close $dockerfile;
-	    print cat($dockerfile), "\n";
+	    print "Docker file:\n", cat($dockerfile), "\n";
+	    print "First boot:\n", cat("$dirname/$firstboot_name"), "\n";
 	} else {
 	    system qw/docker build --file/, $dockerfile->filename(), '--tag', $container, $dirname;
 	}
