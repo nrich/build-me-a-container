@@ -14,6 +14,7 @@ use MIME::Base64 qw/encode_base64/;
 my $NOBASE = 0;
 my $DRYRUN = 0;
 my $SCRIPT = 0;
+my $RAISE_ERROR = 0;
 my $DOCKER = '';
 my $CLONE = '';
 my $MIRROR = '';
@@ -23,6 +24,7 @@ GetOptions(
     nobase => \$NOBASE,
     dryrun => \$DRYRUN,
     script => \$SCRIPT,
+    raise => \$RAISE_ERROR,
     'docker:s' => \$DOCKER,
     'clone:s' => \$CLONE,
     'module:s' => \@modules,
@@ -128,6 +130,10 @@ sub main {
     print $firstboot "SSHKEY=\"$rootkey\"\n";
     print $firstboot "\n";
 
+    if ($RAISE_ERROR) {
+	print $firstboot "set -e\nset -u\n\n";
+    }
+
     my @copylist = ();
     if (-f "$cwd/base/copylist") {
         append(\@copylist, "$cwd/base/copylist");
@@ -157,7 +163,8 @@ sub main {
     }
     
     if (@packages) {
-        @packages = sort keys {map {$_ => 1} @packages};
+	my %packhash = map {$_ => 1} @packages;
+        @packages = sort keys %packhash;
 
 	unless ($DOCKER) {
 	    print $firstboot "\n# install packages\nDEBIAN_FRONTEND=noninteractive apt-get -y install " . join(' ', @packages) . "\n";
@@ -172,6 +179,12 @@ sub main {
     if (-f "$cwd/containers/$container/firstboot") {
         append($firstboot, "$cwd/containers/$container/firstboot", 1);
     }
+
+    unless ($DOCKER) {
+	print $firstboot "\n\nDEBIAN_FRONTEND=noninteractive apt-get autoremove -y\n";
+	print $firstboot "\nDEBIAN_FRONTEND=noninteractive apt-get clean\n";
+    }
+
     close $firstboot;
 
     my $firstboot_name = $firstboot->filename();
@@ -209,6 +222,8 @@ RUN        DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 RUN        DEBIAN_FRONTEND=noninteractive apt-get install -y lsb-release
 RUN        DEBIAN_FRONTEND=noninteractive apt-get install -y $package_list
 RUN        /bin/bash /tmp/installer
+RUN        DEBIAN_FRONTEND=noninteractive apt-get autoremove -y
+RUN        DEBIAN_FRONTEND=noninteractive apt-get clean
 $expose
 CMD $runscript
 EOF
