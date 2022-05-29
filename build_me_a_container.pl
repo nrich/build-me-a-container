@@ -58,6 +58,8 @@ sub main {
     $MIRROR ||= 'iinet';
     $MIRROR = $mirrors{$MIRROR} || $MIRROR;
 
+    my $release = $config{release} || release();
+
     if (-f "$cwd/containers/$container/modules") {
         open my $fh, '<', "$cwd/containers/$container/modules" or die "Could not open `$cwd/containers/$container/modules': $!\n"; 
         while (my $module = <$fh>) {
@@ -74,6 +76,23 @@ sub main {
     if (-f "$cwd/base/ports" and not $NOBASE) {
         ports(\@ports, "$cwd/base/ports");
     }
+
+    if (-d "$cwd/modules/$release") {
+        push @modules, $release;
+    }
+
+    for my $type (@modules) {
+        if (-f "$cwd/modules/$type/requires") {
+            open my $fh, '<', "$cwd/modules/$type/requires" or die "Could not open `$cwd/modules/$type/requires': $!\n"; 
+            while (my $module = <$fh>) {
+                chomp $module;
+                push @modules, $module;
+            }
+            close $fh;
+        }
+    }
+
+    @modules = sort keys %{{map {$_ => 1} @modules}};
 
     for my $type (@modules) {
         if (-f "$cwd/modules/$type/packages") {
@@ -127,7 +146,8 @@ sub main {
     print $firstboot "ARCH=\$(uname -m)\n";
     print $firstboot "DEV=\"$devbox\"\n";
     print $firstboot "USER=\"$user\"\n";
-    print $firstboot "SSHKEY=\"$rootkey\"\n";
+    print $firstboot "SSHKEY=\"$rootkey\"\n" unless $NOBASE;
+    print $firstboot "USERDIR=\$( getent passwd $user | cut -d: -f6 )";
     print $firstboot "\n";
 
     if ($RAISE_ERROR) {
@@ -158,13 +178,12 @@ sub main {
         print $firstboot "chmod $mode $dst\n";
     }
 
-    if (-f "$cwd/base/firstboot") {
+    if (-f "$cwd/base/firstboot" and not $NOBASE) {
         append($firstboot, "$cwd/base/firstboot");
     }
     
     if (@packages) {
-	my %packhash = map {$_ => 1} @packages;
-        @packages = sort keys %packhash;
+	@packages = sort keys %{{map {$_ => 1} @packages}};
 
 	unless ($DOCKER) {
 	    print $firstboot "\n# install packages\nDEBIAN_FRONTEND=noninteractive apt-get -y install " . join(' ', @packages) . "\n";
@@ -183,6 +202,7 @@ sub main {
     unless ($DOCKER) {
 	print $firstboot "\n\nDEBIAN_FRONTEND=noninteractive apt-get autoremove -y\n";
 	print $firstboot "\nDEBIAN_FRONTEND=noninteractive apt-get clean\n";
+	print $firstboot "\nDEBIAN_FRONTEND=noninteractive apt-get update\n";
     }
 
     close $firstboot;
@@ -214,7 +234,7 @@ sub main {
 	my $package_list = join(' ', @packages);
 
         print $dockerfile <<EOF;
-FROM       ubuntu:$config{release}
+FROM       ubuntu:$release
 MAINTAINER $user
 ADD        $firstboot_name /tmp/installer
 RUN        DEBIAN_FRONTEND=noninteractive apt-get update
@@ -369,6 +389,12 @@ sub random_string {
     $string =~ s/_/@chars[rand(@chars)]/ge;
 
     return $string;
+}
+
+sub release {
+    my $release = `lsb_release -sc`;
+    chomp $release;
+    return $release;
 }
 
 =head1 NAME
