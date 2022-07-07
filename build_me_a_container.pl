@@ -114,7 +114,7 @@ sub main {
     $config{user} = $user;
     $config{password} = random_string(12);
     $config{mirror} = $MIRROR;
-    $config{'auth-key'} = "/home/$user/.ssh/id_rsa.pub";
+    $config{'auth-key'} = -f "/home/$user/.ssh/id_rsa.pub" ? "/home/$user/.ssh/id_rsa.pub" : "/home/$user/.ssh/authorized_keys";
 
     config(\%config, "$cwd/base/config") unless $NOBASE;
     for my $type (@modules) {
@@ -128,7 +128,7 @@ sub main {
 
     my $devbox = $container =~ /^dev/ ? "1" : "";
 
-    my $rootkey = cat("/home/$user/.ssh/id_rsa.pub");
+    my $rootkey = cat($config{'auth-key'});
     chomp $rootkey;
 
     my $firstboot = undef;
