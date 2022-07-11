@@ -15,6 +15,7 @@ my $NOBASE = 0;
 my $DRYRUN = 0;
 my $SCRIPT = 0;
 my $RAISE_ERROR = 0;
+my $DOCKER = '';
 my $QEMU = '';
 my $KVM = '';
 my $CLONE = '';
@@ -258,6 +259,23 @@ EOF
 	    system qw/sudo docker build --file/, $dockerfile->filename(), '--tag', $container, $dirname;
 	}
 
+        exit 0;
+    } elsif ($QEMU) {
+        my @command_packages;
+        push @command_packages, ('--addpkg', $_) for @packages;
+
+        $config{cpus} ||= 1;
+        $config{mem} ||= 512;
+
+        my $templatedir = "$cwd/templates";
+
+        my @vm_args = (qw(sudo vmbuilder --verbose kvm ubuntu --flavour virtual --cpus), $config{cpus}, qw(-o --libvirt qemu:///system --mirror));
+        push @vm_args, $mirrors{$MIRROR};
+        push @vm_args, ('--user', $user, '--pass', $config{password}, '--name', $QEMU);
+        push @vm_args, ('--templates', $templatedir, '--suite', $config{release}, '--dest', "/var/lib/libvirt/images/$QEMU/", @command_packages);
+        push @vm_args, ("--mem", $config{mem});
+        push @vm_args, ("--tmpfs", 10*1024);
+        system @vm_args and die "Could not run vmbuilder\n";
         exit 0;
     } elsif ($DRYRUN) {
         print "---------------------------\n";
