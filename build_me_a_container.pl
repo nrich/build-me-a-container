@@ -15,7 +15,8 @@ my $NOBASE = 0;
 my $DRYRUN = 0;
 my $SCRIPT = 0;
 my $RAISE_ERROR = 0;
-my $DOCKER = '';
+my $QEMU = '';
+my $KVM = '';
 my $CLONE = '';
 my $MIRROR = '';
 my @modules = ();
@@ -26,6 +27,7 @@ GetOptions(
     script => \$SCRIPT,
     raise => \$RAISE_ERROR,
     'docker:s' => \$DOCKER,
+    'qemu:s' => \$QEMU,
     'clone:s' => \$CLONE,
     'module:s' => \@modules,
     'mirror:s' => \$MIRROR,
