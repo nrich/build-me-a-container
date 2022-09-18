@@ -327,7 +327,7 @@ EOF
         system qw/sudo lxc-attach -n/, $container, qw/--/, $firstboot_name;
 
         if ($REBOOT) {
-            qw/sudo lxc-attach -n/, $container, qw/-- reboot/;
+            system qw/sudo lxc-attach -n/, $container, qw/-- reboot/;
         }
 
         print "Container $container boot on IP $ip\npassword is $config{password}\n";
