@@ -15,23 +15,27 @@ my $NOBASE = 0;
 my $DRYRUN = 0;
 my $SCRIPT = 0;
 my $RAISE_ERROR = 0;
+my $REBOOT = 0;
 my $DOCKER = '';
 my $QEMU = '';
 my $KVM = '';
 my $CLONE = '';
 my $MIRROR = '';
 my @modules = ();
+my @VARS = ();
 
 GetOptions(
     nobase => \$NOBASE,
     dryrun => \$DRYRUN,
     script => \$SCRIPT,
     raise => \$RAISE_ERROR,
+    reboot => \$REBOOT,
     'docker:s' => \$DOCKER,
     'qemu:s' => \$QEMU,
     'clone:s' => \$CLONE,
     'module:s' => \@modules,
     'mirror:s' => \$MIRROR,
+    'var:s' => \@VARS,
 );
 
 my %mirrors = (
@@ -148,10 +152,26 @@ sub main {
     print $firstboot "RELEASE=\$(lsb_release -sc)\n";
     print $firstboot "ARCH=\$(uname -m)\n";
     print $firstboot "DEV=\"$devbox\"\n";
-    print $firstboot "USER=\"$user\"\n";
+    print $firstboot "IP=\$(hostname -I)\n";
+    if ($NOBASE) {
+        print $firstboot "USERDIR=\$HOME\n";
+    } else {
+        print $firstboot "USER=\"$user\"\n";
+        print $firstboot "USERDIR=\$( getent passwd $user | cut -d: -f6 )\n";
+    }
     print $firstboot "SSHKEY=\"$rootkey\"\n" unless $NOBASE;
-    print $firstboot "USERDIR=\$( getent passwd $user | cut -d: -f6 )";
     print $firstboot "\n";
+
+    if (@VARS) {
+        print $firstboot "# User defined values\n";
+        for my $def (@VARS) {
+            chomp $def;
+            my ($var, $val) = $def =~ /^\s*(\S+)\s*=\s*(\S+)\s*$/g;
+            $var = uc $var;
+            print $firstboot "$var=$val\n";
+        }
+        print $firstboot "\n";
+    }
 
     if ($RAISE_ERROR) {
 	print $firstboot "set -e\nset -u\n\n";
@@ -303,9 +323,12 @@ EOF
         my $ip = get_ip($container);
 
         chmod 0755, $firstboot_name;
-        #system qw/scp/, $firstboot_name, "${user}\@${ip}:$firstboot_name";
         system qw/sudo cp/, $firstboot_name, "/var/lib/lxc/$container/rootfs/$firstboot_name";
         system qw/sudo lxc-attach -n/, $container, qw/--/, $firstboot_name;
+
+        if ($REBOOT) {
+            qw/sudo lxc-attach -n/, $container, qw/-- reboot/;
+        }
 
         print "Container $container boot on IP $ip\npassword is $config{password}\n";
     }

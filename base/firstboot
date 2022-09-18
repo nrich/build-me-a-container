@@ -23,5 +23,9 @@ timedatectl set-timezone Etc/GMT-8
 echo "AllowUsers root $USER" >> /etc/ssh/sshd_config
 
 # set term mode for screen connections
-echo TERM=xterm >> /etc/environment
+echo TERM=xterm-color >> /etc/environment
 
+# set distinct prompt colour
+sed -i -e 's/01;32m/01;36m/' $USERDIR/.bashrc
+
+update-alternatives --install /usr/bin/editor editor /usr/bin/vim 100
